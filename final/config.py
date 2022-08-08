@@ -8,6 +8,6 @@ import pygame
 import sys, os
 from config import *
 from sprites import *
-WIN_WIDTH, WIN_HEIGHT =800 ,600
+WIN_WIDTH, WIN_HEIGHT =1024 ,600
 
 FPS=60
