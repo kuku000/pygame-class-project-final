@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Created on Fri Aug  5 22:21:39 2022
-
+哭阿
 @author: win10
 """
 import pygame
