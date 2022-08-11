@@ -28,6 +28,7 @@ background_image = pygame.transform.scale(pygame.image.load("image/background.pn
 # My First Game
 start_time = pygame.time.get_ticks() # game begining time use to count game time
 
+#****************************************************** new code **********************************
 pygame.mixer.init() #初始化混合器
 # Only_in_sleep = pygame.mixer.music.load("A2_Only_in_Sleep.mp3") # 載入音樂
 # South = pygame.mixer.music.load("south.mp3")
@@ -38,6 +39,7 @@ South.set_volume(0.2)
 
 # pygame.mixer.music.set_volume(0.2)# 設置音量爲 0.2
 # pygame.mixer.music.play() # 播放音樂
+#****************************************************** new code **********************************
 
 class Game:
     def __init__(self):
@@ -107,6 +109,7 @@ class Game:
                     # 卸载所有模块
                     pygame.quit()
                     sys.exit()
+#****************************************************** new code **********************************
 # 讓水可以上下左右移動
                 velocity = 10
                 #判斷有無走路
@@ -136,7 +139,7 @@ class Game:
                         if pygame.mixer.get_busy != 1:
                             pygame.mixer.music.play()
 
-
+#****************************************************** new code **********************************
 
 
             # 更新遊戲
