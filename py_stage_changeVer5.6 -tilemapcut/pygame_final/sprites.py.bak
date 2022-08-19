@@ -1,0 +1,1253 @@
+import pygame
+import time
+from setting import *
+import setting
+from font import *
+
+import math
+
+
+class SpriteSheet:
+    def __init__(self, file):
+        self.sheet = pygame.image.load(file).convert()
+
+    def get_sprite(self, x, y, width, height):
+        sprite = pygame.Surface((width, height))
+        sprite.blit(self.sheet, (0, 0), (x, y, width, height))
+        sprite.set_colorkey((255, 255, 255))
+        # sprite.set_colorkey((0, 0, 0))
+        return sprite
+
+    def get_sprite2(self, x, y, width, height):
+        sprite = pygame.Surface((width, height))
+        sprite.blit(self.sheet, (0, 0), (x, y, width, height))
+        sprite.set_colorkey((0, 0, 0))
+        return sprite
+
+
+class Blood(pygame.sprite.Sprite):
+    def __init__(self, game: object, x: int, y: int) -> None:
+        # 遊戲開始後，定義角色所處的層
+        self.game = game
+        self._layer = PLAYER_LAYER
+        self.groups = self.game.all_sprites
+        pygame.sprite.Sprite.__init__(self, self.groups)
+        self.x = x
+        self.y = y
+        self.width = 100
+        self.blood = 100
+        self.height = 10
+
+        self.image = pygame.Surface([self.blood, self.height])
+        self.image.fill(RED)
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+        self.period = [0.5, 2, 1]
+        self.last_time = time.time()
+
+    def blood_minus(self):
+        now = time.time()
+        if self.blood <= 1:
+            self.blood = 1
+        if now - self.last_time >= self.period[0]:
+            self.last_time = now
+            self.blood -= 5
+
+    def blood_draw(self):
+        if self.blood <= 0:
+            self.blood = 1
+
+        self.image = self.image = pygame.Surface([self.blood, self.height])
+        self.image.fill(RED)
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+    def update(self):
+        self.blood_minus()
+        # self.blood_draw()
+
+
+class Player(pygame.sprite.Sprite):
+    def __init__(self, game, x, y):
+        # 遊戲開始後，定義角色所處的層
+        self.game = game
+        self.need_change = False
+        self._layer = PLAYER_LAYER
+        self.groups = self.game.all_sprites, self.game.player
+
+        pygame.sprite.Sprite.__init__(self, self.groups)
+
+        self.x = x * TILESIZE
+        self.y = y * TILESIZE
+        self.width = 2 * TILESIZE
+        self.height = 2 * TILESIZE
+
+        self.animation_loop = 1
+        # 定義角色初始移動變量
+        self.x_change = 0
+        self.y_change = 0
+
+        self.facing = 'down'
+
+        # 定義角色初始移動變量
+        self.image = self.game.character_spritesheet.get_sprite(64, 64, self.width, self.height)
+        # 獲取角色位置
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+        # 飢餓程度
+        self.last_time = time.time()
+        self.period = [20, 5, 1]
+
+        self.dis_set = [192,180]
+        self.set =self.dis_set[0]
+
+        self.blood = 100
+        pygame.draw.rect(self.game.screen, WHITE, [blood_x, blood_y, 100, 10])
+        pygame.draw.rect(self.game.screen, RED, [blood_x, blood_y, self.blood, 10])
+
+
+
+
+
+
+    def money_display(self):
+        pygame.draw.rect(self.game.screen,BLUE_1,[0,810,100,40])
+        display = "$ "+str(self.game.money)
+        self.game.screen.blit(self.game.font.render(display, True, (0, 0, 0)), (10, 815))
+
+     #血量計算
+    def blood_minus(self):
+        now = time.time()
+        if self.blood <= 0:
+            self.blood = 0
+        if now - self.last_time >= self.period[0]:
+            self.last_time = now
+            self.blood -= 5
+
+    def blood_draw(self):
+        # 血量小於零時，gameover
+        if self.blood == 0:
+            self.game.gameover()
+        pygame.draw.rect(self.game.screen, WHITE, [blood_x, blood_y, 100, 10])
+        pygame.draw.rect(self.game.screen, RED, [blood_x, blood_y, self.blood, 10])
+
+    def delete(self):
+        pygame.sprite.Group.empty(self)
+
+    def update(self):
+        self.money_display()
+        self.movement()
+        self.animate()
+        self.blood_minus()
+        self.blood_draw()
+
+        self.rect.x += self.x_change
+        if self.game.map_number == 0:
+            self.collide_blocks('x')
+            self.collide_store_detector('x')
+        elif self.game.map_number == 1:
+            self.collide_furnitures('x')
+            self.collide_furnitures_door('y')
+        elif self.game.map_number == 2:
+            self.collide_river_blocks('x')
+            self.collide_river_blocks_door('x')
+        self.rect.y += self.y_change
+        if self.game.map_number == 0:
+            self.collide_blocks('y')
+            self. collide_store_detector('y')
+        elif self.game.map_number == 1:
+            self.collide_furnitures('y')
+            self.collide_furnitures_door('y')
+        elif self.game.map_number == 2:
+            self.collide_river_blocks('y')
+            self.collide_river_blocks_door('y')
+
+        self.x_change = 0
+        self.y_change = 0
+        if self.need_change:
+            self.need_change = False
+            self.game.change_stage(0)
+
+        if self.game.shop_is_open:
+            self.game.shop()
+        elif self.game.shop_is_open == False:
+            self.dis = self.dis_set[0]
+
+
+
+
+    # def blood_draw(self):
+    #    surf = pygame.Surface((1280,800))
+    #    pygame.draw.rect(surf,WHITE,[0,0,100,10])
+    #    pygame.draw.rect(surf,RED,[0,0,self.blood,10])
+    def movement(self):
+        # 操控上下左右
+        if not self.game.shop_is_open:
+            keys = pygame.key.get_pressed()
+            if keys[pygame.K_UP]:
+                self.y_change -= PLAYER_SPEED
+                self.facing = 'up'
+            if keys[pygame.K_LEFT]:
+                self.x_change -= PLAYER_SPEED
+                self.facing = 'left'
+            if keys[pygame.K_DOWN]:
+                self.y_change += PLAYER_SPEED
+                self.facing = 'down'
+            if keys[pygame.K_RIGHT]:
+                self.x_change += PLAYER_SPEED
+                self.facing = 'right'
+
+    def collide_store_detector(self,direction):
+        if direction == "x":
+            hits = pygame.sprite.spritecollide(self, self.game.store_detectors, False)
+            if hits:
+                if self.x_change > 0:
+                    self.rect.x = hits[0].rect.left - self.rect.width
+                if self.x_change < 0:
+                    self.rect.x = hits[0].rect.right
+
+        if direction == "y":
+            hits = pygame.sprite.spritecollide(self, self.game.store_detectors, False)
+            if hits:
+                if self.y_change > 0:
+                    self.rect.y = hits[0].rect.top - self.rect.height
+                if self.y_change < 0:
+                    self.rect.y = hits[0].rect.bottom
+
+                    if hits[0].rect.top - self.height >= self.dis:
+                        self.game.shop_is_open = True
+                        self.dis = self.dis_set[1]
+
+
+
+
+
+
+    def collide_blocks(self, direction):  # 角色碰撞方式
+        if direction == "x":
+            hits = pygame.sprite.spritecollide(self, self.game.blocks, False)
+            if hits:
+                if self.x_change > 0:
+                    self.rect.x = hits[0].rect.left - self.rect.width
+                if self.x_change < 0:
+                    self.rect.x = hits[0].rect.right
+        # 如果綜向移動時撞到物品，角色停下
+
+        if direction == "y":
+            hits = pygame.sprite.spritecollide(self, self.game.blocks, False)
+            if hits:
+                if self.y_change > 0:
+                    self.rect.y = hits[0].rect.top - self.rect.height
+                if self.y_change < 0:
+                    self.rect.y = hits[0].rect.bottom
+
+    # 560新增
+
+    def collide_furnitures_door(self, direction):  # 角色碰撞方式
+        if direction == "x":
+            hits = pygame.sprite.spritecollide(self, self.game.furnitures_door, False)
+            if hits:
+                if self.x_change > 0:
+                    self.rect.x = hits[0].rect.left - self.rect.width
+                if self.x_change < 0:
+                    self.rect.x = hits[0].rect.right
+
+        if direction == "y":
+            hits = pygame.sprite.spritecollide(self, self.game.furnitures_door, False)
+            if hits:
+                if self.y_change > 0:
+                    self.rect.y = hits[0].rect.top - self.rect.height
+                    print(hits[0].rect.bottom)
+                    if hits[0].rect.bottom >=799:
+                        self.need_change = True
+                        self.rect.x = 50
+                        self.rect.y = 730
+                if self.y_change < 0:
+                    self.rect.y = hits[0].rect.bottom
+
+
+
+    def collide_furnitures(self, direction):  # 角色碰撞方式
+        if direction == "x":
+            hits = pygame.sprite.spritecollide(self, self.game.furnitures, False)
+            if hits:
+                if self.x_change > 0:
+                    self.rect.x = hits[0].rect.left - self.rect.width
+                if self.x_change < 0:
+                    self.rect.x = hits[0].rect.right
+        # 如果綜向移動時撞到物品，角色停下
+
+        if direction == "y":
+            hits = pygame.sprite.spritecollide(self, self.game.furnitures, False)
+            if hits:
+                if self.y_change > 0:
+                    self.rect.y = hits[0].rect.top - self.rect.height
+                if self.y_change < 0:
+                    self.rect.y = hits[0].rect.bottom
+
+    def collide_river_blocks_door(self, direction):  # 角色碰撞方式
+        if direction == "x":
+            hits = pygame.sprite.spritecollide(self, self.game.river_blocks_door, False)
+            if hits:
+                if self.x_change > 0:
+                    self.rect.x = hits[0].rect.left - self.rect.width
+                if self.x_change < 0:
+                    self.rect.x = hits[0].rect.right
+                    if hits[0].rect.left - self.rect.width <= 32:
+                        self.need_change = True
+                        self.rect.x = 950
+                        self.rect.y = 400
+        # 如果綜向移動時撞到物品，角色停下
+
+        if direction == "y":
+            hits = pygame.sprite.spritecollide(self, self.game.river_blocks_door, False)
+            if hits:
+                if self.y_change > 0:
+                    self.rect.y = hits[0].rect.top - self.rect.height
+                if self.y_change < 0:
+                    self.rect.y = hits[0].rect.bottom
+
+    def collide_river_blocks(self, direction):  # 角色碰撞方式
+        if direction == "x":
+            hits = pygame.sprite.spritecollide(self, self.game.river_blocks, False)
+            if hits:
+                if self.x_change > 0:
+                    self.rect.x = hits[0].rect.left - self.rect.width
+                if self.x_change < 0:
+                    self.rect.x = hits[0].rect.right
+        # 如果綜向移動時撞到物品，角色停下
+
+        if direction == "y":
+            hits = pygame.sprite.spritecollide(self, self.game.river_blocks, False)
+            if hits:
+                if self.y_change > 0:
+                    self.rect.y = hits[0].rect.top - self.rect.height
+                if self.y_change < 0:
+                    self.rect.y = hits[0].rect.bottom
+
+    def collide_doors(self, direction):  # 角色碰撞方式
+        if direction == "x":
+            hits = pygame.sprite.spritecollide(self, self.game.doors, False)
+            if hits:
+                if hits[0].rect.x - 32 <= 0:
+                    self.game.change_stage(2)
+        # 如果綜向移動時撞到物品，角色停下
+
+        if direction == "y":
+            hits = pygame.sprite.spritecollide(self, self.game.blocks, False)
+            if hits:
+                self.rect.y = 500
+
+
+    def animate(self):  # 定義角色移動時動畫
+        # 定義角色 向下 移動時圖片動畫
+        down_animation = [
+            self.game.character_spritesheet.get_sprite(2 * TILESIZE, 2 * TILESIZE, self.width, self.height),
+            self.game.character_spritesheet.get_sprite(4 * TILESIZE, 2 * TILESIZE, self.width, self.height),
+            self.game.character_spritesheet.get_sprite(6 * TILESIZE, 2 * TILESIZE, self.width, self.height),
+            self.game.character_spritesheet.get_sprite(8 * TILESIZE, 2 * TILESIZE, self.width, self.height)]
+        # 定義角色 向上 移動時圖片動畫
+        up_animation = [
+            self.game.character_spritesheet.get_sprite(2 * TILESIZE, 4.4 * TILESIZE, self.width, self.height),
+            self.game.character_spritesheet.get_sprite(4 * TILESIZE, 4.4 * TILESIZE, self.width, self.height),
+            self.game.character_spritesheet.get_sprite(6 * TILESIZE, 4.4 * TILESIZE, self.width, self.height),
+            self.game.character_spritesheet.get_sprite(8 * TILESIZE, 4.4 * TILESIZE, self.width, self.height)]
+        # 定義角色 向左 移動時圖片動畫
+        left_animation = [
+            self.game.character_spritesheet.get_sprite(2 * TILESIZE, 6.8 * TILESIZE, self.width, self.height),
+            self.game.character_spritesheet.get_sprite(4 * TILESIZE, 6.8 * TILESIZE, self.width, self.height),
+            self.game.character_spritesheet.get_sprite(6 * TILESIZE, 6.8 * TILESIZE, self.width, self.height),
+            self.game.character_spritesheet.get_sprite(8 * TILESIZE, 6.8 * TILESIZE, self.width, self.height)]
+        # 定義角色 向右 移動時圖片動畫
+        right_animation = [
+            self.game.character_spritesheet.get_sprite(2 * TILESIZE, 9.3 * TILESIZE, self.width, self.height),
+            self.game.character_spritesheet.get_sprite(4 * TILESIZE, 9.3 * TILESIZE, self.width, self.height),
+            self.game.character_spritesheet.get_sprite(6 * TILESIZE, 9.3 * TILESIZE, self.width, self.height),
+            self.game.character_spritesheet.get_sprite(8 * TILESIZE, 9.3 * TILESIZE, self.width, self.height)]
+        # 如果角色是向下移動，則使角色圖片變為面向下的圖片包
+        if self.facing == 'down':
+            if self.y_change == 0:
+                self.image = self.game.character_spritesheet.get_sprite(2 * TILESIZE, 2 * TILESIZE, self.width,
+                                                                        self.height)
+            else:
+                self.image = down_animation[math.floor(self.animation_loop)]
+                self.animation_loop += 0.1
+                if self.animation_loop >= 4:
+                    self.game.walk_sound.play()
+                    self.animation_loop = 1
+        # 如果角色是向上移動，則使角色圖片變為面向上的圖片包
+        if self.facing == 'up':
+            if self.y_change == 0:
+                self.image = self.game.character_spritesheet.get_sprite(2 * TILESIZE, 4.4 * TILESIZE, self.width,
+                                                                        self.height)
+            else:
+                self.image = up_animation[math.floor(self.animation_loop)]
+                self.animation_loop += 0.1
+                if self.animation_loop >= 4:
+                    self.game.walk_sound.play()
+                    self.animation_loop = 1
+        # 如果角色是向左移動，則使角色圖片變為面向左邊的圖片包
+        if self.facing == 'left':
+            if self.x_change == 0:
+                self.image = self.game.character_spritesheet.get_sprite(2 * TILESIZE, 6.8 * TILESIZE, self.width,
+                                                                        self.height)
+            else:
+                self.image = left_animation[math.floor(self.animation_loop)]
+                self.animation_loop += 0.1
+                if self.animation_loop >= 4:
+                    self.game.walk_sound.play()
+                    self.animation_loop = 1
+        # 如果角色是向右移動，則使角色圖片變為面向右邊的圖片包
+        if self.facing == 'right':
+            if self.x_change == 0:
+                self.image = self.game.character_spritesheet.get_sprite(2 * TILESIZE, 9.3 * TILESIZE, self.width,
+                                                                        self.height)
+            else:
+                self.image = right_animation[math.floor(self.animation_loop)]
+                self.animation_loop += 0.1
+                if self.animation_loop >= 4:
+                    self.game.walk_sound.play()
+                    self.animation_loop = 1
+
+
+class Block(pygame.sprite.Sprite):
+    def __init__(self, game, x, y):
+        self.game = game
+        self._layer = BLOCK_LAYER
+
+        self.groups = self.game.all_sprites, self.game.blocks
+        pygame.sprite.Sprite.__init__(self, self.groups)
+
+        self.x = x * TILESIZE
+        self.y = y * TILESIZE
+        self.width = TILESIZE
+        self.height = TILESIZE
+
+        self.image = pygame.Surface([self.width, self.height])
+        self.image.fill(BLUE)
+
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+    @classmethod
+    def house(cls, game, x, y):
+        house = cls(game, x, y)
+        house.width = 224
+        house.height = 192
+        house.image = house.game.buliding_spritesheet.get_sprite(19, 60, house.width, house.height)
+        house.rect = house.image.get_rect()
+        house.rect.x = house.x
+        house.rect.y = house.y
+        return house
+
+    @classmethod
+    def river(cls, game, x, y):
+        river = cls(game, x, y)
+        river.width = 160
+        river.height = 192
+        river.image = river.game.buliding_spritesheet.get_sprite(10, 256, river.width, river.height)
+        river.rect = river.image.get_rect()
+        river.rect.x = river.x
+        river.rect.y = river.y
+        return river
+
+    @classmethod
+    def shop(cls, game, x, y):
+        shop = cls(game, x, y)
+        shop.width = 160
+        shop.height = 160
+        shop.image = shop.game.buliding_spritesheet.get_sprite(252, 94, shop.width, shop.height)
+        shop.rect = shop.image.get_rect()
+        shop.rect.x = shop.x
+        shop.rect.y = shop.y
+        return shop
+
+    @classmethod
+    def bed(cls, game, x, y):
+        bed = cls(game, x, y)
+        bed.width = 160
+        bed.height = 224
+        bed.image = bed.game.furniture_spritesheet.get_sprite(250, 30, bed.width, bed.height)
+        bed.rect = bed.image.get_rect()
+        bed.rect.x = bed.x
+        bed.rect.y = bed.y
+        return bed
+
+
+class Ground(pygame.sprite.Sprite):  # 定義可路過的地板
+    def __init__(self, game, x, y):
+        # 遊戲開始設置地板的大小尺寸
+        self.game = game
+        self._layer = GROUND_LAYER
+        self.groups = self.game.all_sprites, self.game.grounds
+        pygame.sprite.Sprite.__init__(self, self.groups)
+
+        self.x = x * TILE_SIZE
+        self.y = y * TILE_SIZE
+        self.width = TILE_SIZE
+        self.height = TILE_SIZE
+        # 讀取地板素材
+        self.image = pygame.Surface([self.width, self.height])
+        self.image.fill(WHITE)
+        # 讀取地板位置
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+    @classmethod
+    def terrainA(cls, game, x, y):
+        terrainA = cls(game, x, y)
+        terrainA.width = TILE_SIZE
+        terrainA.height = TILE_SIZE
+        terrainA.image = terrainA.game.terrain_spritesheet.get_sprite(192, 192, terrainA.width, terrainA.height)
+        return terrainA
+
+    @classmethod
+    def terrainB(cls, game, x, y):
+        terrainB = cls(game, x, y)
+        terrainB.width = TILE_SIZE
+        terrainB.height = TILE_SIZE
+        terrainB.image = terrainB.game.terrain_spritesheet.get_sprite(256, 192, terrainB.width, terrainB.height)
+        return terrainB
+
+    @classmethod
+    def terrainC(cls, game, x, y):
+        terrainC = cls(game, x, y)
+        terrainC.width = TILE_SIZE
+        terrainC.height = TILE_SIZE
+        terrainC.image = terrainC.game.terrain_spritesheet.get_sprite(128, 192, terrainC.width, terrainC.height)
+        return terrainC
+
+    @classmethod
+    def modA(cls, game, x, y):
+        modA = cls(game, x, y)
+        modA.width = TILE_SIZE
+        modA.height = TILE_SIZE
+        modA.image = modA.game.terrain_spritesheet.get_sprite(0, 231, modA.width, modA.height)
+        return modA
+
+    @classmethod
+    def modB(cls, game, x, y):
+        modB = cls(game, x, y)
+        modB.width = TILE_SIZE
+        modB.height = TILE_SIZE
+        modB.image = modB.game.terrain_spritesheet.get_sprite(32, 232, modB.width, modB.height)
+        return modB
+
+    @classmethod
+    def rockB(cls, game, x, y):
+        rockB = cls(game, x, y)
+        rockB.width = TILE_SIZE
+        rockB.height = TILE_SIZE
+        rockB.image = rockB.game.terrain_spritesheet.get_sprite(32, 160, rockB.width, rockB.height)
+        return rockB
+
+    @classmethod
+    def road(cls, game, x, y):
+        road = cls(game, x, y)
+        road.width = TILE_SIZE
+        road.height = TILE_SIZE
+        road.image = road.game.terrain_spritesheet.get_sprite(0, 232, road.width, road.height)
+        return road
+
+    @classmethod
+    def waterA(cls, game, x, y):
+        waterA = cls(game, x, y)
+        waterA.width = TILE_SIZE
+        waterA.height = TILE_SIZE
+        waterA.image = waterA.game.terrain_spritesheet.get_sprite(1, 300, waterA.width, waterA.height)
+        return waterA
+
+    @classmethod
+    def waterB(cls, game, x, y):
+        waterB = cls(game, x, y)
+        waterB.width = TILE_SIZE
+        waterB.height = TILE_SIZE
+        waterB.image = waterB.game.terrain_spritesheet.get_sprite(TILESIZE + 2, 300, waterB.width, waterB.height)
+        return waterB
+
+    def update(self):
+        pass
+
+#__________________NPC因為每一個地圖都在不同層 所以每層的NPC 都得自己創一個Class_____________________
+class NPC_Ground(pygame.sprite.Sprite):
+    def __init__(self, game, x, y):
+        # 設置 NPC 所處的層
+        self.game = game
+        self._layer = 1
+        self.groups = self.game.all_sprites, self.game.NPCS
+        pygame.sprite.Sprite.__init__(self, self.groups)
+
+        self.name = 'posiyn'
+        self.x = x * TILE_SIZE
+        self.y = y * TILE_SIZE
+        self.width = 2 * TILE_SIZE
+        self.height = 2 * TILE_SIZE
+        # 初始化NPC圖案(色塊)
+        self.image = pygame.Surface([self.width, self.height])
+        self.image.fill(RED)
+        # 設置 NPC 路徑
+        self.path = KING_PATH
+        self.path_pos = 0
+        # 設置 NPC 面向
+        self.facing = 'down'
+        self.animation_loop = 1
+        # 設置 NPC 移動
+        self.moving = False
+        self.x_change = 0
+        self.y_change = 0
+        self.speed = 2
+        self.max_count = TILE_SIZE / self.speed
+        self.move_count = 0
+        self.move_goal_x = None
+        self.move_goal_y = None
+
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+    def move(self):  # NPC移動
+        if self.moving:
+            if self.rect.x == self.move_goal_x and self.rect.y == self.move_goal_y:
+                self.moving = False
+                self.x_change = 0
+                self.y_change = 0
+            else:
+                if self.path[self.path_pos] == 'x+':
+                    self.x_change += self.speed
+                elif self.path[self.path_pos] == 'x-':
+                    self.x_change -= self.speed
+
+                if self.path[self.path_pos] == 'y+':
+                    self.y_change += self.speed
+                elif self.path[self.path_pos] == 'y-':
+                    self.y_change -= self.speed
+
+        self.path_pos += 1
+
+        if self.x_change == 0:
+            if self.y_change > 0:
+                self.facing = 'down'
+            elif self.y_change < 0:
+                self.facing = 'up'
+
+        if self.y_change == 0:
+            if self.x_change > 0:
+                self.facing = 'right'
+            elif self.y_change < 0:
+                self.x_change = 'left'
+
+    def animate(self):
+        pass
+
+    def move_detection(self):
+        pass
+
+
+class NPC_Floor(pygame.sprite.Sprite):
+    def __init__(self, game, x, y):
+        # 設置 NPC 所處的層
+        self.game = game
+        self._layer = -1
+        self.groups = self.game.all_sprites, self.game.NPCS
+        pygame.sprite.Sprite.__init__(self, self.groups)
+
+        self.name = 'Losin'
+        self.x = x * TILE_SIZE
+        self.y = y * TILE_SIZE
+        self.width = 2 * TILE_SIZE
+        self.height = 2 * TILE_SIZE
+        # 初始化NPC圖案(色塊)
+        self.image = self.game.character_spritesheet.get_sprite(8.2 * TILESIZE, 13.6 * TILESIZE,self.width, self.height)
+        # 設置 NPC 路徑
+        self.path = None
+        self.path_pos = 0
+        # 設置 NPC 面向
+        self.facing = 'down'
+        self.animation_loop = 1
+        # 設置 NPC 移動
+        self.moving = False
+        self.x_change = 0
+        self.y_change = 0
+        self.speed = 6
+        self.max_count = TILE_SIZE / self.speed
+        self.move_count = 0
+        self.move_goal_x = None
+        self.move_goal_y = None
+
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+    def move(self):  # NPC移動
+        if self.moving:
+            if self.rect.x == self.move_goal_x and self.rect.y == self.move_goal_y:
+                self.moving = False
+                self.x_change = 0
+                self.y_change = 0
+            else:
+                if self.path[self.path_pos] == 'x+':
+                    self.x_change += self.speed
+                elif self.path[self.path_pos] == 'x-':
+                    self.x_change -= self.speed
+
+                if self.path[self.path_pos] == 'y+':
+                    self.y_change += self.speed
+                elif self.path[self.path_pos] == 'y-':
+                    self.y_change -= self.speed
+
+        self.path_pos += 1
+
+        if self.x_change == 0:
+            if self.y_change > 0:
+                self.facing = 'down'
+            elif self.y_change < 0:
+                self.facing = 'up'
+
+        if self.y_change == 0:
+            if self.x_change > 0:
+                self.facing = 'right'
+            elif self.y_change < 0:
+                self.x_change = 'left'
+
+    def animate(self):
+        pass
+
+    def move_detection(self):
+        pass
+
+class NPC_river(pygame.sprite.Sprite):
+    def __init__(self, game, x, y):
+        # 設置 NPC 所處的層
+        self.game = game
+        self._layer = -3
+        self.groups = self.game.all_sprites, self.game.NPCS
+        pygame.sprite.Sprite.__init__(self, self.groups)
+
+        self.name = 'Watan'
+        self.x = x * TILE_SIZE
+        self.y = y * TILE_SIZE
+        self.width = 2 * TILE_SIZE
+        self.height = 2 * TILE_SIZE
+        # 初始化NPC圖案(色塊)
+        self.image = self.game.character_spritesheet.get_sprite(8.2 * TILESIZE, 11.6 * TILESIZE,self.width, self.height)
+        # 設置 NPC 路徑
+        self.path = None
+        self.path_pos = 0
+        # 設置 NPC 面向
+        self.facing = 'down'
+        self.animation_loop = 1
+        # 設置 NPC 移動
+        self.moving = False
+        self.x_change = 0
+        self.y_change = 0
+        self.speed = 6
+        self.max_count = TILE_SIZE / self.speed
+        self.move_count = 0
+        self.move_goal_x = None
+        self.move_goal_y = None
+
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+    def move(self):  # NPC移動
+        if self.moving:
+            if self.rect.x == self.move_goal_x and self.rect.y == self.move_goal_y:
+                self.moving = False
+                self.x_change = 0
+                self.y_change = 0
+            else:
+                if self.path[self.path_pos] == 'x+':
+                    self.x_change += self.speed
+                elif self.path[self.path_pos] == 'x-':
+                    self.x_change -= self.speed
+
+                if self.path[self.path_pos] == 'y+':
+                    self.y_change += self.speed
+                elif self.path[self.path_pos] == 'y-':
+                    self.y_change -= self.speed
+
+        self.path_pos += 1
+
+        if self.x_change == 0:
+            if self.y_change > 0:
+                self.facing = 'down'
+            elif self.y_change < 0:
+                self.facing = 'up'
+
+        if self.y_change == 0:
+            if self.x_change > 0:
+                self.facing = 'right'
+            elif self.y_change < 0:
+                self.x_change = 'left'
+
+    def animate(self):
+        pass
+
+    def move_detection(self):
+        pass
+
+
+
+class Door(pygame.sprite.Sprite):
+    def __init__(self, game, x, y):
+        # 遊戲開始設置地板的大小尺寸
+        self.game = game
+        self._layer = GROUND_LAYER
+        self.groups = self.game.all_sprites, self.game.doors
+        pygame.sprite.Sprite.__init__(self, self.groups)
+
+        self.x = x * TILE_SIZE
+        self.y = y * TILE_SIZE
+        self.width = TILE_SIZE
+        self.height = TILE_SIZE
+        # 讀取地板素材
+        self.image = pygame.Surface([self.width, self.height])
+        self.image.fill((WHITE))
+        # 讀取地板位置
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+        self.tilemap_in = None
+        self.tilemap_out = None
+
+        self.player_colide_door = False
+        self.next_map = None
+        self.in_village = True
+
+    def detect(self):
+        hits = pygame.sprite.spritecollide(self, self.game.player, False)
+        if hits:
+            self.player_colide_door = True
+            if self.in_village:
+                self.next_map = self.tilemap_in
+            elif self.in_village == False:
+                self.next_map = self.tilemap_out
+
+    def map_change(self):
+        if self.player_colide_door:
+            """
+            self.game.all_sprites.clear(self.game.screen, self.game.screen)
+            self.game.blocks.clear(self.game.screen, self.game.screen)
+            self.game.doors.clear(self.game.screen, self.game.screen)
+            self.game.player.clear(self.game.screen, self.game.screen)
+            self.game.map_using = self.next_map
+            self.game.createmap()
+            self.in_village = not self.in_village
+            """
+            self.player_colide_door = False
+
+    def update(self):
+        self.detect()
+        self.map_change()
+        self.player_colide_door = False
+
+    @classmethod
+    def house(cls, game, x, y):
+        house = cls(game, x, y)
+        house.width = TILE_SIZE
+        house.height = TILE_SIZE
+        house.image = pygame.Surface((house.width, house.height))
+        house.image.fill((0, 0, 0))
+        # house.tilemap_in = tilemap_1
+        # house.tilemap_out = tilemap_0
+        return house
+
+    @classmethod
+    def river(cls, game, x, y):
+        river = cls(game, x, y)
+        river.width = TILE_SIZE
+        river.height = TILE_SIZE
+        river.image = pygame.Surface((river.width, river.height))
+        river.image.fill((0, 0, 0))
+        river.map_changer1 = 0
+        # river.map_changer2 = 2
+        return river
+
+
+class Floor(pygame.sprite.Sprite):  # 定義可路過的地板
+    def __init__(self, game, x, y):
+        # 遊戲開始設置地板的大小尺寸
+        self.game = game
+        self._layer = -2
+        self.groups = self.game.all_sprites, self.game.floors
+        pygame.sprite.Sprite.__init__(self, self.groups)
+
+        self.x = x * TILE_SIZE
+        self.y = y * TILE_SIZE
+        self.width = TILE_SIZE
+        self.height = TILE_SIZE
+        # 讀取地板素材
+        self.image = pygame.Surface([self.width, self.height])
+        self.image.fill(WHITE)
+        # 讀取地板位置
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+    @classmethod
+    def road(cls, game, x, y):
+        road = cls(game, x, y)
+        road.width = TILE_SIZE
+        road.height = TILE_SIZE
+        road.image = road.game.terrain2_spritesheet.get_sprite(3, 336, road.width, road.height)
+        return road
+
+    def update(self):
+        pass
+
+
+class Furniture(pygame.sprite.Sprite):  # 定義可路過的地板
+    def __init__(self, game, x, y):
+        # 遊戲開始設置地板的大小尺寸
+        self.game = game
+        self._layer = -1
+        self.groups = self.game.all_sprites, self.game.furnitures
+        pygame.sprite.Sprite.__init__(self, self.groups)
+
+        self.x = x * TILE_SIZE
+        self.y = y * TILE_SIZE
+        self.width = TILE_SIZE
+        self.height = TILE_SIZE
+        # 讀取地板素材
+        self.image = pygame.Surface([self.width, self.height])
+        self.image.fill(WHITE)
+        # 讀取地板位置
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+    @classmethod
+    def wall(cls, game, x, y):
+        wall = cls(game, x, y)
+        wall.width = TILESIZE
+        wall.height = TILESIZE
+        wall.image = wall.game.terrain2_spritesheet.get_sprite2(35, 336, wall.width, wall.height)
+        wall.rect = wall.image.get_rect()
+        wall.rect.x = wall.x
+        wall.rect.y = wall.y
+        return wall
+
+    @classmethod
+    def bed(cls, game, x, y):
+        bed = cls(game, x, y)
+        bed.width = 110
+        bed.height = 150
+        bed.image = bed.game.furniture_spritesheet.get_sprite2(40, 20, bed.width, bed.height)
+        bed.rect = bed.image.get_rect()
+        bed.rect.x = bed.x
+        bed.rect.y = bed.y
+        return bed
+
+    @classmethod
+    def tv(cls, game, x, y):
+        tv = cls(game, x, y)
+        tv.width = 100
+        tv.height = 79
+        tv.image = tv.game.furniture_spritesheet.get_sprite2(377, 23, tv.width, tv.height)
+        tv.rect = tv.image.get_rect()
+        tv.rect.x = tv.x
+        tv.rect.y = tv.y
+        return tv
+    @classmethod
+    def table(cls,game, x, y):
+        table = cls(game, x, y)
+        table.width = 57
+        table.height = 58
+        table.image = table.game.furniture_spritesheet.get_sprite2(36, 186, table.width, table.height)
+        table.rect = table.image.get_rect()
+        table.rect.x = table.x
+        table.rect.y = table.y
+        return table
+
+    @classmethod
+    def chair(cls, game, x, y):
+        chair = cls(game, x, y)
+        chair.width = 32
+        chair.height = 58
+        chair.image = chair.game.furniture_spritesheet.get_sprite2(207, 188, chair.width, chair.height)
+        chair.rect = chair.image.get_rect()
+        chair.rect.x = chair.x
+        chair.rect.y = chair.y
+        return chair
+
+    @classmethod
+    def bookcase(cls, game, x, y):
+        bookcase = cls(game, x, y)
+        bookcase.width = 83
+        bookcase.height = 110
+        bookcase.image = bookcase.game.furniture_spritesheet.get_sprite2(282, 24, bookcase.width, bookcase.height)
+        bookcase.rect = bookcase.image.get_rect()
+        bookcase.rect.x = bookcase.x
+        bookcase.rect.y = bookcase.y
+        return bookcase
+
+    @classmethod
+    def sofa(cls, game, x, y):
+        sofa = cls(game, x, y)
+        sofa.width = 43
+        sofa.height = 58
+        sofa.image = sofa.game.furniture_spritesheet.get_sprite2(251, 187, sofa.width, sofa.height)
+        sofa.rect = sofa.image.get_rect()
+        sofa.rect.x = sofa.x
+        sofa.rect.y = sofa.y
+        return sofa
+
+    @classmethod
+    def sofa2(cls, game, x, y):
+        sofa2 = cls(game, x, y)
+        sofa2.width = 43
+        sofa2.height = 58
+        sofa2.image = sofa2.game.furniture_spritesheet.get_sprite2(402, 187, sofa2.width, sofa2.height)
+        sofa2.rect = sofa2.image.get_rect()
+        sofa2.rect.x = sofa2.x
+        sofa2.rect.y = sofa2.y
+        return sofa2
+
+    @classmethod
+    def table2(cls, game, x, y):
+        table2 = cls(game, x, y)
+        table2.width = 88
+        table2.height = 55
+        table2.image = table2.game.furniture_spritesheet.get_sprite2(304, 186, table2.width, table2.height)
+        table2.rect = table2.image.get_rect()
+        table2.rect.x = table2.x
+        table2.rect.y = table2.y
+        return table2
+
+
+
+    def update(self):
+        pass
+
+class Furniture_door(pygame.sprite.Sprite):  # 定義可路過的地板
+    def __init__(self, game, x, y):
+        # 遊戲開始設置地板的大小尺寸
+        self.game = game
+        self._layer = -1
+        self.groups = self.game.all_sprites, self.game.furnitures_door
+        pygame.sprite.Sprite.__init__(self, self.groups)
+
+        self.x = x * TILE_SIZE
+        self.y = y * TILE_SIZE
+        self.width = TILE_SIZE
+        self.height = TILE_SIZE
+        # 讀取地板素材
+        self.image = pygame.Surface([self.width, self.height])
+        self.image.fill(WHITE)
+        # 讀取地板位置
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+    @classmethod
+    def door_path(cls, game, x, y):
+        door_path = cls(game, x, y)
+        door_path.width = TILE_SIZE
+        door_path.height = TILE_SIZE
+        door_path.image = door_path.game.terrain_spritesheet.get_sprite(0, 96, door_path.width, door_path.height)
+        door_path.rect = door_path.image.get_rect()
+        door_path.rect.x = door_path.x
+        door_path.rect.y = door_path.y
+        return door_path
+
+
+
+
+
+class River_Ground(pygame.sprite.Sprite):  # 定義可路過的地板
+    def __init__(self, game, x, y):
+        # 遊戲開始設置地板的大小尺寸
+        self.game = game
+        self._layer = -4
+        self.groups = self.game.all_sprites, self.game.river_grounds
+        pygame.sprite.Sprite.__init__(self, self.groups)
+
+        self.x = x * TILE_SIZE
+        self.y = y * TILE_SIZE
+        self.width = TILE_SIZE
+        self.height = TILE_SIZE
+        # 讀取地板素材
+        self.image = pygame.Surface([self.width, self.height])
+        self.image.fill(WHITE)
+        # 讀取地板位置
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+    @classmethod
+    def modA(cls, game, x, y):
+        modA = cls(game, x, y)
+        modA.width = TILE_SIZE
+        modA.height = TILE_SIZE
+        modA.image = modA.game.terrain_spritesheet.get_sprite(0, 231, modA.width, modA.height)
+        return modA
+
+    @classmethod
+    def terrainC(cls, game, x, y):
+        terrainC = cls(game, x, y)
+        terrainC.width = TILE_SIZE
+        terrainC.height = TILE_SIZE
+        terrainC.image = terrainC.game.terrain_spritesheet.get_sprite(128, 192, terrainC.width, terrainC.height)
+        return terrainC
+
+    @classmethod
+    def waterA(cls, game, x, y):
+        waterA = cls(game, x, y)
+        waterA.width = TILE_SIZE
+        waterA.height = TILE_SIZE
+        waterA.image = waterA.game.terrain_spritesheet.get_sprite(1, 300, waterA.width, waterA.height)
+        return waterA
+
+    @classmethod
+    def waterB(cls, game, x, y):
+        waterB = cls(game, x, y)
+        waterB.width = TILE_SIZE
+        waterB.height = TILE_SIZE
+        waterB.image = waterB.game.terrain_spritesheet.get_sprite(TILESIZE + 2, 300, waterB.width, waterB.height)
+        return waterB
+
+
+    def update(self):
+        pass
+
+
+class River_Block(pygame.sprite.Sprite):  # 定義可路過的地板
+    def __init__(self, game, x, y):
+        # 遊戲開始設置地板的大小尺寸
+        self.game = game
+        self._layer = -3
+        self.groups = self.game.all_sprites, self.game.river_blocks
+        pygame.sprite.Sprite.__init__(self, self.groups)
+
+        self.x = x * TILE_SIZE
+        self.y = y * TILE_SIZE
+        self.width = TILE_SIZE
+        self.height = TILE_SIZE
+        # 讀取地板素材
+        self.image = pygame.Surface([self.width, self.height])
+        self.image.fill(WHITE)
+        # 讀取地板位置
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+    @classmethod
+    def stone(cls, game, x, y):
+        stone = cls(game, x, y)
+        stone.width = TILESIZE
+        stone.height = TILESIZE
+        stone.image = stone.game.buliding_spritesheet.get_sprite(262, 333, stone.width, stone.height)
+        stone.rect = stone.image.get_rect()
+        stone.rect.x = stone.x
+        stone.rect.y = stone.y
+        return stone
+
+
+
+    @classmethod
+    def tree(cls, game, x, y):
+        tree = cls(game, x, y)
+        tree.width = TILE_SIZE
+        tree.height = TILE_SIZE
+        tree.image = tree.game.buliding_spritesheet.get_sprite()
+
+    def update(self):
+        pass
+
+class River_Block_door(pygame.sprite.Sprite):  # 定義可路過的地板
+    def __init__(self, game, x, y):
+        # 遊戲開始設置地板的大小尺寸
+        self.game = game
+        self._layer = -3
+        self.groups = self.game.all_sprites, self.game.river_blocks_door
+        pygame.sprite.Sprite.__init__(self, self.groups)
+
+        self.x = x * TILE_SIZE
+        self.y = y * TILE_SIZE
+        self.width = TILE_SIZE
+        self.height = TILE_SIZE
+        # 讀取地板素材
+        self.image = pygame.Surface([self.width, self.height])
+        self.image.fill(WHITE)
+        # 讀取地板位置
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+    @classmethod
+    def grass(cls, game, x, y):
+        grass = cls(game, x, y)
+        grass.width = TILESIZE
+        grass.height = TILESIZE
+        grass.image = grass.game.terrain_spritesheet.get_sprite(128, 192, grass.width, grass.height)
+        grass.rect = grass.image.get_rect()
+        grass.rect.x = grass.x
+        grass.rect.y = grass.y
+        return grass
+
+
+class Store(pygame.sprite.Sprite):
+    def __init__(self,game, x, y):
+        self.game = game
+        self._layer = -6
+        self.groups = self.game.all_sprites, self.game.store
+        pygame.sprite.Sprite.__init__(self, self.groups)
+
+        self.x = x * TILE_SIZE
+        self.y = y * TILE_SIZE
+        self.width = TILE_SIZE
+        self.height = TILE_SIZE
+
+        # 讀取地板素材
+        self.image =  self.game.store_spritesheet.get_sprite(0,0,225,256)
+
+
+        # 讀取地板位置
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+
+
+
+    def update(self) -> None:
+        pass
+
+
+
+class Store_detector(pygame.sprite.Sprite):
+    def __init__(self,game, x, y):
+        self.game = game
+        self._layer = GROUND_LAYER
+        self.groups = self.game.all_sprites,self.game.store_detectors
+        pygame.sprite.Sprite.__init__(self, self.groups)
+
+        self.x = x * TILE_SIZE
+        self.y = y * TILE_SIZE
+        self.width = TILE_SIZE
+        self.height = TILE_SIZE
+        # 讀取地板素材
+        self.image = pygame.Surface([self.width, self.height])
+        self.image.fill(WHITE)
+        # 讀取地板位置
+        self.rect = self.image.get_rect()
+        self.rect.x = self.x
+        self.rect.y = self.y
+    def update(self) -> None:
+        pass
+
+    @classmethod
+    def modA(cls, game, x, y):
+        modA = cls(game, x, y)
+        modA.width = TILE_SIZE
+        modA.height = TILE_SIZE
+        modA.image = modA.game.terrain_spritesheet.get_sprite(0, 231, modA.width, modA.height)
+        return modA
