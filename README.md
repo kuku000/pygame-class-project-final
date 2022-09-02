@@ -1,2 +1,2 @@
-# pygame01
-pygame class
+# pygame 創意程式設計
+#2022 遊戲設計 
